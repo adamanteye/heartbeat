@@ -6,8 +6,7 @@ To show I am still active.
 
 ```sh
 curl -X POST \
-    -H "Authentication Basic: your-secret" \
     -H "Content-Type: application/json" \
-    -d '{"source": "linux laptop", "event": "poweron", "note": ""}' \
+    -d '{"source": "linux laptop", "event": "power on", "note": "", "token": "your-secret"}' \
     http://127.0.0.1:9000/
 ```

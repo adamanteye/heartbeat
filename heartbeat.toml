@@ -1,5 +1,5 @@
 [store]
-data = "/root/db"
+dir = "/root/heartbeat"
 token = "your-secret"
 
 [listen]

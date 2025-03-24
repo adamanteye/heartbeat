@@ -8,7 +8,7 @@ pub struct Listen {
 
 #[derive(Deserialize)]
 pub struct Static {
-    pub data: String,
+    pub dir: String,
     pub token: String,
 }
 

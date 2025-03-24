@@ -1,8 +1,8 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use clap::Parser;
 use rusqlite::Connection;
+use tokio::sync::Mutex;
 
 mod config;
 mod view;
@@ -25,8 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_path = std::path::Path::new(args.config.as_str());
     let config = std::fs::read_to_string(config_path)?;
     let config: Config = toml::from_str(config.as_str())?;
+    std::fs::create_dir_all(&config.store.dir)?;
     log::info!("connecting to sqlite database");
-    let conn = Connection::open(config.store.data)?;
+    let conn = Connection::open(format!("{}/db", config.store.dir))?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS record (
             id INTEGER PRIMARY KEY,

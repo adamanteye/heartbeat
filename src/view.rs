@@ -1,11 +1,11 @@
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::post,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -79,7 +79,15 @@ impl IntoResponse for AppError {
     }
 }
 
-pub(super) async fn render(State(state): State<AppState>) -> Result<Response, AppError> {
+#[derive(Deserialize)]
+pub(super) struct Param {
+    zone: Option<i32>,
+}
+
+pub(super) async fn render(
+    Query(Param { zone }): Query<Param>,
+    State(state): State<AppState>,
+) -> Result<Response, AppError> {
     let lock = state.conn.lock().await;
     let mut stmt = lock
         .prepare("SELECT time, source, event, note FROM record")
@@ -103,17 +111,31 @@ pub(super) async fn render(State(state): State<AppState>) -> Result<Response, Ap
     }
     res.sort_unstable();
     let mut table = Vec::new();
+    let mut zone = zone.unwrap_or_default();
+    if zone < -24 {
+        zone = -24 + (zone % 24);
+    }
+    if zone > 24 {
+        zone %= 24;
+    }
     for res in res {
         table.push(format!(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            res.time.format("%Y-%m-%d %H:%M"),
+            res.time
+                .with_timezone(&FixedOffset::east_opt(3600 * zone).unwrap())
+                .format("%Y-%m-%d %H:%M"),
             res.event,
             res.source,
             res.note,
         ));
     }
+    let zone = if zone < 0 {
+        format!("{zone}")
+    } else {
+        format!("+{zone}")
+    };
     let html = format!(
-        r#"<!doctype html><html lang=zh><meta charset=UTF-8><link rel=icon type=image/x-icon href=https://note.adamanteye.cc/assets/favicon.ico><link rel=preload as=style crossorigin href=https://static.zeoseven.com/zsft/442/main/result.css onload='this.rel="stylesheet"' onerror='this.href="https://static-host.zeoseven.com/zsft/442/main/result.css"'><noscript><link rel=stylesheet href=https://static.zeoseven.com/zsft/442/main/result.css></noscript><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css><title>Adamanteye's Heartbeats</title><style>:root{{--primary-color:#d20f39;--secondary-color:#ea76cb;--teal-color:#179299;--url-color:#e39067;--text-color:#4c4f69;--mauve-color:#8839ef;--background-color:#fffefa;--font-family:"Maple Mono NF CN"}}body{{font-family:var(--font-family);font-weight:400;background-color:var(--background-color);color:var(--text-color)}}th{{color:var(--primary-color)}}#main-grid{{display:grid;grid-template-columns:1fr;grid-template-areas:"header" "main" "footer";min-height:100vh;grid-template-rows:auto 1fr auto}}header{{grid-area:header}}main{{grid-area:main}}table{{table-layout:fixed;text-align:left;width:100%;border-collapse:separate;border-spacing:0 .4em;margin-bottom:1em}}thead th:nth-child(1){{width:15%}}thead th:nth-child(2){{width:40%}}thead th:nth-child(3){{width:25%}}thead th:nth-child(4){{width:20%}}footer{{grid-area:footer;margin:auto;margin-top:2em}}tr a{{color:var(--url-color)}}footer>a{{color:var(--secondary-color)}}</style><body id=main-grid><header><h1>Adamanteye's Heartbeats</h1></header><main><table><thead><tr><th scope=col>Time [UTC]<th scope=col>Event<th scope=col>Source<th scope=col>Note<tbody>{}</table></main><footer><i class="fa-regular fa-copyright"></i>
+        r#"<!doctype html><html lang=zh><meta charset=UTF-8><link rel=icon type=image/x-icon href=https://note.adamanteye.cc/assets/favicon.ico><link rel=preload as=style crossorigin href=https://static.zeoseven.com/zsft/442/main/result.css onload='this.rel="stylesheet"' onerror='this.href="https://static-host.zeoseven.com/zsft/442/main/result.css"'><noscript><link rel=stylesheet href=https://static.zeoseven.com/zsft/442/main/result.css></noscript><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css><title>Adamanteye's Heartbeats</title><style>:root{{--primary-color:#d20f39;--secondary-color:#ea76cb;--teal-color:#179299;--url-color:#e39067;--text-color:#4c4f69;--mauve-color:#8839ef;--background-color:#fffefa;--font-family:"Maple Mono NF CN"}}body{{font-family:var(--font-family);font-weight:400;background-color:var(--background-color);color:var(--text-color)}}th{{color:var(--primary-color)}}#main-grid{{display:grid;grid-template-columns:1fr;grid-template-areas:"header" "main" "footer";min-height:100vh;grid-template-rows:auto 1fr auto}}header{{grid-area:header}}main{{grid-area:main}}table{{table-layout:fixed;text-align:left;width:100%;border-collapse:separate;border-spacing:0 .4em;margin-bottom:1em}}thead th:nth-child(1){{width:20%}}thead th:nth-child(2){{width:35%}}thead th:nth-child(3){{width:25%}}thead th:nth-child(4){{width:20%}}footer{{grid-area:footer;margin:auto;margin-top:2em}}tr a{{color:var(--url-color)}}footer>a{{color:var(--secondary-color)}}</style><body id=main-grid><header><h1>Adamanteye's Heartbeats</h1></header><main><table><thead><tr><th scope=col>Time [UTC{zone}]<th scope=col>Event<th scope=col>Source<th scope=col>Note<tbody>{}</table></main><footer><i class="fa-regular fa-copyright"></i>
         <b>2025</b>
         <b>adamanteye</b>
         <a rel=license href=http://creativecommons.org/licenses/by-sa/4.0/>
