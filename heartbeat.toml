@@ -1,0 +1,7 @@
+[store]
+data = "./test.db"
+token = "your-secret"
+
+[listen]
+address = "127.0.0.1"
+port = 9000
