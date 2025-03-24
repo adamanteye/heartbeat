@@ -13,7 +13,7 @@ use view::AppState;
 #[derive(Parser, Debug)]
 #[command(version)]
 pub struct Args {
-    #[arg(short, long, default_value = "/usr/etc/heartbeat.toml")]
+    #[arg(short, long, default_value = "/etc/heartbeat.toml")]
     pub config: String,
 }
 
@@ -38,8 +38,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (),
     )?;
     let conn = Arc::new(Mutex::new(conn));
-    let secret = Arc::new(config.store.token);
-    let state = AppState { conn, secret };
+    let token = {
+        if let Ok(t) = std::env::var("HEARTBEAT_TOKEN") {
+            t
+        } else {
+            config.store.token
+        }
+    };
+    let token = Arc::new(token);
+    let state = AppState { conn, token };
     let app = view::router(state);
     let listener =
         tokio::net::TcpListener::bind(format!("{}:{}", config.listen.address, config.listen.port))

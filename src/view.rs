@@ -48,7 +48,7 @@ impl Ord for HeartbeatRecord {
 #[derive(Clone)]
 pub struct AppState {
     pub conn: Arc<Mutex<Connection>>,
-    pub secret: Arc<String>,
+    pub token: Arc<String>,
 }
 
 pub(super) enum AppError {
@@ -128,7 +128,7 @@ pub(super) async fn receive(
     Json(data): Json<HeartbeatReport>,
 ) -> Result<Response, AppError> {
     log::debug!("receiving signal");
-    if data.token == *state.secret {
+    if data.token == *state.token {
         let time = Utc::now();
         state
             .conn
