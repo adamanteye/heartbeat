@@ -1,7 +1,7 @@
 FROM rust:alpine AS build
 COPY . /app
 WORKDIR /app
-RUN cargo build --release
+RUN apk upgrade --no-cache && apk --no-cache add musl-dev && cargo build --release
 
 FROM alpine AS runtime
 
