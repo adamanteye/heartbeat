@@ -152,20 +152,38 @@ pub(super) async fn receive(
     log::debug!("receiving signal");
     if data.token == *state.token {
         let time = Utc::now();
-        state
-            .conn
-            .lock()
-            .await
-            .execute(
-                "INSERT INTO record (time, source, event, note) VALUES (?1, ?2, ?3, ?4)",
-                (
-                    time.to_rfc3339(),
-                    data.source.clone(),
-                    data.event.clone(),
-                    data.note,
-                ),
-            )
+        let lock = state.conn.lock().await;
+        let mut stmt = lock
+            .prepare("SELECT time, source, event, note FROM record ORDER BY id DESC LIMIT 1")
             .map_err(|e| AppError::Server(format!("{e}")))?;
+        let mut rows = stmt
+            .query_map([], |row| {
+                Ok(HeartbeatRecord {
+                    time: {
+                        let time: String = row.get(0)?;
+                        DateTime::parse_from_rfc3339(&time).unwrap().into()
+                    },
+                    source: row.get(1)?,
+                    event: row.get(2)?,
+                    note: row.get(3)?,
+                })
+            })
+            .map_err(|e| AppError::Server(format!("{e}")))?;
+        if let Some(Ok(row)) = rows.next() {
+            if row.event == data.event && row.source == data.source && row.note == data.note {
+                return Ok(StatusCode::OK.into_response());
+            }
+        }
+        lock.execute(
+            "INSERT INTO record (time, source, event, note) VALUES (?1, ?2, ?3, ?4)",
+            (
+                time.to_rfc3339(),
+                data.source.clone(),
+                data.event.clone(),
+                data.note,
+            ),
+        )
+        .map_err(|e| AppError::Server(format!("{e}")))?;
         log::info!("received {} heartbeat form {}", data.event, data.source);
         Ok(StatusCode::CREATED.into_response())
     } else {
